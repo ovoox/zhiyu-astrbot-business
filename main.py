@@ -1,9 +1,12 @@
 import aiohttp
 import asyncio
+import base64
 from astrbot.api.all import *
 
-FIRST_API_URL = "http://api.ocoa.cn/api/cyw.php"
-SECOND_API_URL = "http://api.ocoa.cn/api/cyw.php"
+_OBFUSCATED_API = "aHR0cDovL2FwaS5vY29hLmNuL2FwaS9jeXcucGhw"  
+
+def _get_api_url():
+    return base64.b64decode(_OBFUSCATED_API).decode('utf-8')
 
 @register("business_query", "知鱼", "QQ业务查询插件", "1.0")
 class BusinessQueryPlugin(Star):
@@ -11,14 +14,10 @@ class BusinessQueryPlugin(Star):
         super().__init__(context)
     
     def _format_result(self, raw_result: str) -> str:
-    
         if not raw_result:
             return "未返回有效数据"
-        
         text = raw_result.replace("✓", "✅").replace("X", "❌")
-        
         blocks = [block.strip() for block in text.split("-----------------------------") if block.strip()]
-        
         return "\n\n".join(blocks)
 
     @event_message_type(EventMessageType.GROUP_MESSAGE)
@@ -27,9 +26,11 @@ class BusinessQueryPlugin(Star):
         if msg not in ["查业务", "业务查询"]:
             return
 
+        api_url = _get_api_url()
+
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(FIRST_API_URL) as resp:
+                async with session.get(api_url) as resp:
                     if resp.status != 200:
                         yield event.chain_result([Plain(text="获取二维码失败 请稍后再试")])
                         return
@@ -56,7 +57,7 @@ class BusinessQueryPlugin(Star):
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{SECOND_API_URL}?verify={verify}") as resp:
+                async with session.get(f"{api_url}?verify={verify}") as resp:
                     second_data = await resp.json()
         except Exception as e:
             self.context.logger.error(f"Second API error: {e}")
