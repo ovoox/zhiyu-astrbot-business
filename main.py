@@ -11,15 +11,14 @@ class BusinessQueryPlugin(Star):
         super().__init__(context)
     
     def _format_result(self, raw_result: str) -> str:
-        """格式化 result：替换符号 + 去掉分隔线 + 用空行分隔业务"""
+    
         if not raw_result:
             return "未返回有效数据"
         
+        text = raw_result.replace("✓", "✅").replace("X", "❌")
         
-        # 按原始分隔线切分 过滤空块
         blocks = [block.strip() for block in text.split("-----------------------------") if block.strip()]
         
-        # 用两个换行符（\n\n）连接每个业务块 形成空行分隔
         return "\n\n".join(blocks)
 
     @event_message_type(EventMessageType.GROUP_MESSAGE)
@@ -28,7 +27,6 @@ class BusinessQueryPlugin(Star):
         if msg not in ["查业务", "业务查询"]:
             return
 
-        # 第一步：获取二维码
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(FIRST_API_URL) as resp:
@@ -43,20 +41,19 @@ class BusinessQueryPlugin(Star):
 
         qr_image = first_data.get("qr_image")
         verify = first_data.get("verify")
-        tip_msg = first_data.get("msg", "请扫码")
+        tip_msg = first_data.get("msg", "请在15秒内完成扫码\n该码只查询业务到期时间\n并无任何用途 放心扫码")
 
         if not qr_image or not verify:
             yield event.chain_result([Plain(text="返回数据不完整 无法继续查询")])
             return
 
         yield event.chain_result([
-            Plain(text=f"{tip_msg}\n（15秒后自动返回查询结果）\n"),
+            Plain(text=f"{tip_msg}\n15秒后自动返回查询结果\n"),
             Image.fromURL(qr_image)
         ])
 
         await asyncio.sleep(15)
 
-        # 第二步：带 verify 查询结果
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(f"{SECOND_API_URL}?verify={verify}") as resp:
@@ -65,8 +62,7 @@ class BusinessQueryPlugin(Star):
             self.context.logger.error(f"Second API error: {e}")
             yield event.chain_result([Plain(text="查询结果获取失败")])
             return
-
-        # 检查是否成功
+     
         if second_data.get("code") != 0:
             error_msg = second_data.get("msg", "未知错误")
             yield event.chain_result([Plain(text=f"查询失败：{error_msg}")])
