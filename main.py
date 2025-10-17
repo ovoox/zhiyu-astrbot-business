@@ -6,7 +6,7 @@ from astrbot.api.all import *
 
 PLUGIN_DIR = os.path.join('data', 'plugins', 'astrbot_plugin_businessquery')
 
-# 新的接口地址（明文，无需 base64）
+# 接口地址
 FIRST_API_URL = "http://api.ocoa.cn/api/cyw.php"
 SECOND_API_URL_TEMPLATE = "http://api.ocoa.cn/api/cyw.php?verify={verify}"
 
@@ -60,16 +60,16 @@ class BusinessQueryPlugin(Star):
 
             qr_image = first_data.get("qr_image")
             verify = first_data.get("verify")
-            msg_tip = first_data.get("msg", "请扫码完成验证")
+            tip_msg = first_data.get("msg", "请扫码完成验证")
 
             if not qr_image or not verify:
                 yield event.chain_result([Plain(text="返回数据不完整，缺少二维码或验证参数。")])
                 return
 
-            # 发送二维码图片 + 提示
+            # 发送提示文字 + 二维码图片
             yield event.chain_result([
-                Plain(text=f"{msg_tip}\n（系统将在15秒后自动查询结果，请勿重复发送指令）\n"),
-                Image(url=qr_image)
+                Plain(text=f"{tip_msg}\n（系统将在15秒后自动查询结果，请勿重复发送指令）\n"),
+                Image.fromURL(qr_image)
             ])
 
             # 等待15秒
@@ -82,25 +82,20 @@ class BusinessQueryPlugin(Star):
                 yield event.chain_result([Plain(text="查询超时或验证失败，请重新尝试。")])
                 return
 
-            # 根据返回内容决定如何展示
-            # 假设最终结果在 msg 或其他字段，这里做通用处理
+            # 处理第二次返回结果
             if second_data.get("code") == 0:
-                # 如果返回了新的二维码（比如需要二次扫码），也可以处理
+                # 如果返回了新的二维码（例如需要二次确认）
                 if "qr_image" in second_data:
-                    # 可能需要再次扫码？但你没说明，这里按最终结果处理
-                    final_msg = second_data.get("msg", "操作成功")
-                    final_img = second_data.get("qr_image")
-                    if final_img:
-                        yield event.chain_result([
-                            Plain(text=f"后续操作：{final_msg}\n"),
-                            Image(url=final_img)
-                        ])
-                    else:
-                        yield event.chain_result([Plain(text=final_msg)])
+                    new_qr = second_data.get("qr_image")
+                    new_msg = second_data.get("msg", "请继续扫码")
+                    yield event.chain_result([
+                        Plain(text=f"{new_msg}\n"),
+                        Image.fromURL(new_qr)
+                    ])
                 else:
-                    # 假设是纯文本结果
-                    result_text = json.dumps(second_data, ensure_ascii=False, indent=2)
-                    yield event.chain_result([Plain(text=f"查询结果：\n{result_text}")])
+                    # 假设是最终文本结果，提取 msg 或整个 data
+                    final_text = second_data.get("msg", "查询成功，但未返回详细信息。")
+                    yield event.chain_result([Plain(text=f"查询结果：\n{final_text}")])
             else:
                 error_msg = second_data.get("msg", "未知错误")
                 yield event.chain_result([Plain(text=f"查询失败：{error_msg}")])
