@@ -1,6 +1,5 @@
 import aiohttp
 import asyncio
-import re
 from astrbot.api.all import *
 
 FIRST_API_URL = "http://api.ocoa.cn/api/cyw.php"
@@ -11,35 +10,19 @@ class BusinessQueryPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
     
-    def _beautify_result(self, raw_result: str) -> str:
-        """美化 result 文本"""
+    def _format_result(self, raw_result: str) -> str:
+        """格式化 result：替换符号 + 去掉分隔线 + 用空行分隔业务"""
         if not raw_result:
             return "⚠️ 未返回有效数据。"
         
         # 替换自动续费符号
         text = raw_result.replace("✓", "✅").replace("X", "❌")
         
-        # 分割业务块（以 ----------------------------- 为界）
-        parts = text.split("-----------------------------")
-        cleaned_parts = [part.strip() for part in parts if part.strip()]
+        # 按原始分隔线切分，过滤空块
+        blocks = [block.strip() for block in text.split("-----------------------------") if block.strip()]
         
-        # 最后一行通常是总结（如“共开通...”），单独处理
-        summary = ""
-        if cleaned_parts and "共开通" in cleaned_parts[-1]:
-            summary = cleaned_parts.pop()
-        
-        # 用更美观的分隔线
-        separator = "─────────────────────────────"
-        formatted = "\n".join([part for part in cleaned_parts if part])
-        
-        # 组装最终文本
-        output = "✨【QQ业务查询结果】✨\n\n"
-        if formatted:
-            output += formatted + "\n"
-        if summary:
-            output += f"{separator}\n📌 {summary}"
-        
-        return output
+        # 用两个换行符（\n\n）连接每个业务块，形成空行分隔
+        return "\n\n".join(blocks)
 
     @event_message_type(EventMessageType.GROUP_MESSAGE)
     async def on_group_message(self, event: AstrMessageEvent):
@@ -85,7 +68,7 @@ class BusinessQueryPlugin(Star):
             yield event.chain_result([Plain(text="❌ 查询结果获取失败。")])
             return
 
-        # 解析并美化 result
+        # 检查是否成功
         if second_data.get("code") != 0:
             error_msg = second_data.get("msg", "未知错误")
             yield event.chain_result([Plain(text=f"❌ 查询失败：{error_msg}")])
@@ -96,5 +79,5 @@ class BusinessQueryPlugin(Star):
             yield event.chain_result([Plain(text="⚠️ 查询成功，但未返回业务数据。")])
             return
 
-        beautified = self._beautify_result(result_text)
-        yield event.chain_result([Plain(text=beautified)])
+        formatted = self._format_result(result_text)
+        yield event.chain_result([Plain(text=formatted)])
