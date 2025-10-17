@@ -41,7 +41,7 @@ class BusinessQueryPlugin(Star):
 
         qr_image = first_data.get("qr_image")
         verify = first_data.get("verify")
-        tip_msg = first_data.get("msg", "请在15秒内完成扫码\n该码只查询业务到期时间\n并无任何用途 放心扫码")
+        tip_msg = first_data.get("msg", "请在15秒内完成扫码\n该码只查询QQ业务\n并无任何用途 放心扫码")
 
         if not qr_image or not verify:
             yield event.chain_result([Plain(text="返回数据不完整 无法继续查询")])
